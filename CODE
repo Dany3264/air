@@ -1,0 +1,99 @@
+#AIR QUALITY ANALYSIS
+#PACKAGES
+
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+import plotly.graph_objects as go
+pio.templates.default = "plotly_white"
+
+#DATASET
+data = pd.read_csv(r"C:\Users\Microsoft\Desktop\Air quality project\air quality dataset.csv")
+print(data.head())
+
+#CONVERT DATE COLUMN INTO DATETIME DATA
+data["date"] = pd.to_datetime(data["date"])
+
+#DESCRIPTIVE STATISTICS OF THE DATASET
+print((data.describe()))
+
+#VISUALIZATION OF PRESENCE OF POLLULANT AGENTS
+fig = go.Figure()
+
+for pollutant in ["co", "no", "no2", "o3", "so2", "pm2_5", "pm10", "nh3"]:
+    fig.add_trace(go.Scatter(x=data["date"], y=data[pollutant], mode="lines", name= pollutant))
+
+#LABELS
+fig.update_layout(title="Presence of Pollutants in Air at Delhi",
+                  xaxis_title="Date", yaxis_title= "Concentration (µg/m³)")
+#fig.show()
+
+#AIR QUALITY INDEX
+#BREAKPOINTS
+aqi_breakpoints = [
+    (0, 12.0, 50), (12.1, 35.4, 100), (35.5, 55.4, 150),
+    (55.5, 150.4, 200), (150.5, 250.4, 300), (250.5, 350.4, 400),
+    (350.5, 500.4, 500)
+]
+
+#FUNCTIONS TO CALCUATE AQI
+def calculate_aqi(pollutant_name, concentreation):
+    for low, high, aqi in aqi_breakpoints:
+        if low <= concentreation <= high:
+            return aqi
+    return None
+
+def calculate_mean_aqi(row):
+    aqis=[]
+    pollutants = ['co', 'no', 'no2', 'o3', 'so2', 'pm2_5', 'pm10', 'nh3']
+    for pollutant in pollutants:
+        aqi = calculate_aqi(pollutant, row[pollutant])
+        if aqi is not None:
+            aqis.append(aqi)
+    return max(aqis)
+
+#CALCULATING AQI PER ROW
+data["AQI"] = data.apply(calculate_mean_aqi, axis=1)
+
+#CATEGORIES
+categories = [
+    (0, 50, "Good"), (51, 100, "Moderate"), (101, 150, "Unhealthy for Sensitive Groups"),
+    (151, 200, "Unhealty"), (201,300, "Very Unhealty"), (301, 500, "Hazardous")
+]
+
+def categorize(value):
+    for low, high, category in categories:
+        if low <= value <= high:
+            return category
+    return None
+
+#CATEGORIZED AQI COLUMN
+data["Categorized AQI"] = data["AQI"].apply(categorize)
+
+# BAR PLOT AQI JANUARY
+fig = px.bar(data, x="date", y="AQI",
+             title="January")
+fig.update_xaxes(title="Date")
+fig.update_yaxes(title="AQI")
+
+# HISTOGRAM AQI JANUARY
+
+fig = px.histogram(data, x="date", color="Categorized AQI", title="Distribution")
+fig.update_xaxes(title="Date")
+fig.update_yaxes(title="Counts")
+
+#DISTRIBUTION OF POLLUTANTS
+pollutants = ["co", "no", "no2", "o3", "so2", "pm2_5", "pm10", "nh3"]
+colors = px.colors.qualitative.Plotly
+concentration = data[pollutants].sum()
+
+concentration_dataframe = pd.DataFrame({"Pollutant": pollutants, "Concentration": concentration})
+
+fig = px.pie(concentration_dataframe, names = "Pollutant", values="Concentration", title="Pollutants and Concetrations", hole=0.6, color_discrete_sequence=colors)
+fig.update_traces(textinfo="percent+label")
+fig.update_layout(legend_title="List of Pollutants")
+
+
+#CORRELATION
+matrix = data[pollutants].corr()
+fig=px.imshow(matrix, x=pollutants, y=pollutants, title="Correlation of pollutants")
